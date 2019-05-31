@@ -6,66 +6,72 @@ import java.io.IOException;
 import java.net.Socket;
 
 public class ClientHandler {
-    private DataInputStream in;
-    private DataOutputStream out;
-    private Socket socket;
-    private MainServer server;
-    private String nick;
 
-    public ClientHandler(Socket socket, MainServer server) {
+    Socket socket = null;
+    DataInputStream in;
+    DataOutputStream out;
+    Server server;
+
+    public String getNick() {
+        return nick;
+    }
+
+    String nick;
+
+    public ClientHandler(Server server, Socket socket) {
         try {
-            this.socket = socket;
             this.server = server;
-            in = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(socket.getOutputStream());
+            this.socket = socket;
+            this.in = new DataInputStream(socket.getInputStream());
+            this.out = new DataOutputStream(socket.getOutputStream());
 
             new Thread(new Runnable() {
-
                 @Override
                 public void run() {
                     try {
-                        // цикл для авторизации
                         while (true) {
                             String str = in.readUTF();
-                            // если сообщение начинается с /auth
                             if(str.startsWith("/auth")) {
                                 String[] tokens = str.split(" ");
-                                // Вытаскиваем данные из БД
                                 String newNick = AuthService.getNickByLoginAndPass(tokens[1], tokens[2]);
-                                if (newNick != null && !MainServer.isAlreadyAuth(newNick)) {
-                                    // отправляем сообщение об успешной авторизации
-                                    sendMsg("/authok");
-                                    nick = newNick;
-                                    server.subscribe(ClientHandler.this);
-                                    break;
-                                } else if(newNick == null){
+                                if(newNick != null) {
+                                    if(!server.isNickBusy(newNick)) {
+                                        sendMsg("/authok");
+                                        nick = newNick;
+                                        server.subscribe(ClientHandler.this);
+                                        break;
+                                    } else {
+                                        sendMsg("Учетная запись уже используется!");
+                                    }
+                                } else {
                                     sendMsg("Неверный логин/пароль!");
-                                } else if(MainServer.isAlreadyAuth(newNick)){
-                                    sendMsg("Пользователь уже авторизован!");
                                 }
                             }
                         }
 
-                        // блок для отправки сообщений
                         while (true) {
                             String str = in.readUTF();
-                            if(str.equals("/end")) {
-                                out.writeUTF("/serverClosed");
-                                break;
-                            }
-                            if (str.startsWith("/w")) {
-                                StringBuilder builder = new StringBuilder();
-                                String[] strings = str.split(" ");
-                                for (String s: strings) {
-                                    builder.append(s + " ");
+                            if(str.startsWith("/")) {
+                                if(str.equals("/end")) {
+                                    out.writeUTF("/serverClosed");
                                 }
-                                // 4 дополнительных символа это "/w" c пробелом и пробел после ника
-                                builder.delete(0, (nick.length()+4));
-                                server.privateMsg(nick, strings[1], builder.toString());
-                            } else server.broadcastMsg(nick + ": "+ str);
+                                if(str.startsWith("/w ")) {
+                                    String[] tokens = str.split(" ",3);
+                                    if (!tokens[1].equals(AuthService.getBlacklistByNick(nick))){
+                                        server.sendPersonalMsg(ClientHandler.this, tokens[1], tokens[2]);
+                                    } else sendMsg("Пользователь " + tokens[1] + "добавил вас в чёрный список. Увы.");
+                                }
+                                if(str.startsWith("/blacklist ")) {
+                                    String[] tokens = str.split(" ");
+                                    AuthService.addToBlacklist(nick, tokens[1]);
+                                    sendMsg("Вы добавили пользователя " + tokens[1] + " в черный список");
+                                }
+                            } else {
+                                server.broadcastMsg(ClientHandler.this,nick + ": " + str);
+                            }
                         }
 
-                    }  catch (IOException e) {
+                    } catch (IOException e) {
                         e.printStackTrace();
                     } finally {
                         try {
@@ -93,8 +99,10 @@ public class ClientHandler {
         }
     }
 
-    public String getNick (){
-        return this.nick;
+    public boolean checkBlackList(String to, String from) {
+        if (AuthService.getNickByBlacklist(to) != null && from.equals(AuthService.getNickByBlacklist(to))){
+            return true;
+        } else return false;
     }
 
     public void sendMsg(String msg) {
