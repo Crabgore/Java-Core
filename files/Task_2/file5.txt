@@ -1,0 +1,1 @@
+= new ArrayList<>(); ... Enumeration<InputStream> e = Collections.enumeration(al);
