@@ -1,1 +1,0 @@
-пригодиться следующая конструкция: ArrayList<InputStream> al 
