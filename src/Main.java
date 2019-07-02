@@ -15,25 +15,15 @@ public class Main {
         PopPush(queue);
     }
 
-    private static void PopPush(AbstractList al){
-        //Создаю временный объект и счётчик.
-        Object temp;
-        int count = 0;
-        //Создаю коллекцию "айдишников"
-        ArrayList<Integer> ids = new ArrayList<>();
-        while (true){
-            //Получаю хэшкод первого объекта исходной коллекции.
-            int id = al.get(0).hashCode();
-            //Проверяю его наличие в коллекции "айдишников". Если его нет - перемещаю первый элемент исходной коллекции
-            //в конец, увеличиваю счётчик и добавляю текущий элемент в коллекцию "айдишников".
-            //Если первый объект исходной коллекции уже присутствует в коллекции "айдишников" - прерываю цикл.
-            if (!ids.contains(id)){
-                temp = queue.get(0);
-                queue.remove(0);
-                queue.add(temp);
-                count++;
-                ids.add(temp.hashCode());
-            } else break;
+    private static void PopPush(AbstractList<Object> al){
+        int count = 1;
+        Marker m = new Marker(al.get(0));
+        al.add(m);
+        al.remove(0);
+        while (al.get(0).hashCode() != m.getId()) {
+            al.add(al.get(0));
+            al.remove(0);
+            count++;
         }
         System.out.println("В коллекции " + count + " элемента(ов).");
     }
